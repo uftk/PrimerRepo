@@ -1,0 +1,76 @@
+name: Docker Security Scan
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  security-scan:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # 1. Checkout del código
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+
+      # 2. Build de la imagen Docker
+      - name: Build Docker image
+        run: |
+          docker build -t hello-dotnet-vulnerable ./docker
+
+
+      # 3. Instalar Trivy
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@v0.2.2
+
+
+      # 4. Escaneo con salida JSON
+      - name: Run Trivy scan
+        run: |
+          trivy image \
+            --format json \
+            --output trivy-report.json \
+            hello-dotnet-vulnerable
+
+
+      # 5. Mostrar reporte generado
+      - name: Upload Trivy report
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report
+          path: trivy-report.json
+
+
+      # 6. Parsear JSON y fallar si hay CRITICAL
+      - name: Check critical vulnerabilities
+        run: |
+          CRITICAL=$(python3 - <<'EOF'
+          import json
+
+          with open("trivy-report.json") as f:
+              data = json.load(f)
+
+          count = 0
+
+          for result in data.get("Results", []):
+              for vuln in result.get("Vulnerabilities", []):
+                  if vuln.get("Severity") == "CRITICAL":
+                      count += 1
+
+          print(count)
+          EOF
+          )
+
+          echo "Critical vulnerabilities found: $CRITICAL"
+
+          if [ "$CRITICAL" -gt 0 ]; then
+            echo "❌ Pipeline failed: Critical vulnerabilities detected"
+            exit 1
+          else
+            echo "✅ No critical vulnerabilities found"
+          fi
