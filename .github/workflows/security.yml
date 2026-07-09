@@ -48,6 +48,5 @@ jobs:
 
       # 6. Parsear JSON y fallar si hay CRITICAL
       - name: Parse Trivy report and validate vulnerabilities
-  run: |
-    python3 scripts/parse-trivy.py
-        
+        run: |
+          python3 scripts/parse-trivy.py
